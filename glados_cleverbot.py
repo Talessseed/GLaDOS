@@ -1,13 +1,13 @@
 """Python library allowing interaction with the Cleverbot API."""
 import hashlib
-import urllib.request, urllib.parse, urllib.error
-from urllib.request import *
+import urllib
+import urllib2
+from text_to_speech import *
 import time
 
 class Cleverbot:
     """
     Wrapper over the Cleverbot API.
-
     """
     HOST = "www.cleverbot.com"
     PROTOCOL = "http://"
@@ -62,10 +62,8 @@ class Cleverbot:
         """Asks Cleverbot a question.
         
         Maintains message history.
-
         Args:
             q (str): The question to ask
-
         Returns:
             Cleverbot's answer
         """
@@ -75,7 +73,7 @@ class Cleverbot:
         # Connect to Cleverbot's API and remember the response
         try:
             self.resp = self._send()
-        except urllib.error.HTTPError:
+        except urllib2.HTTPError:
             # request failed. returning empty string
             return str()
 
@@ -96,7 +94,6 @@ class Cleverbot:
     def _send(self):
         """POST the user's question and all required information to the 
         Cleverbot API
-
         Cleverbot tries to prevent unauthorized access to its API by
         obfuscating how it generates the 'icognocheck' token, so we have
         to URLencode the data twice: once to generate the token, and
@@ -112,42 +109,43 @@ class Cleverbot:
                     break
 
         # Generate the token
-        enc_data = urllib.parse.urlencode(self.data)
+        enc_data = urllib.urlencode(self.data)
         digest_txt = enc_data[9:35]
-        token = hashlib.md5(digest_txt.encode('utf-8')).hexdigest()
+        token = hashlib.md5(digest_txt).hexdigest()
         self.data['icognocheck'] = token
 
         # Add the token to the data
-        enc_data = urllib.parse.urlencode(self.data)
-        binary_data = enc_data.encode('utf-8') 
-        req = urllib.request.Request(self.API_URL, binary_data, self.headers)
+        enc_data = urllib.urlencode(self.data)
+        req = urllib2.Request(self.API_URL, enc_data, self.headers)
 
         # POST the data to Cleverbot's API
-        conn = urllib.request.urlopen(req)
+        conn = urllib2.urlopen(req)
         resp = conn.read()
 
         # Return Cleverbot's response
         return resp
 
     def _parse(self):
-        
         """Parses Cleverbot's response"""
-        #parsed = [ item.split('\r') for item in self.resp.split('\r\r\r\r\r\r')[:-1]]
-        parsed = str(self.resp).replace("\\", "\\\\")[2:]
-        parsed = parsed.split('\\\\r')
-
-        
-        return {
-            'answer': parsed[0],
-            'conversation_id': parsed[1],
-            'conversation_log_id': parsed[2],
-            'unknown': parsed[-1]
+        parsed = [
+            item.split('\r') for item in self.resp.split('\r\r\r\r\r\r')[:-1]
+        ]
+        parsed_dict = {
+            'answer': parsed[0][0],
+            'conversation_id': parsed[0][1],
+            'conversation_log_id': parsed[0][2],
         }
-
+        try:
+            parsed_dict['unknown'] = parsed[1][-1]
+        except IndexError:
+            parsed_dict['unknown'] = None
+        return parsed_dict
+    
+    
 def cleverbot_ans(quest):
     cb1 = Cleverbot()
     aquest=cb1.ask(quest)
-    while aquest[:3]=='\\n':
+    while aquest[:2]=='\n':
         aquest=cb1.ask(quest)
     return aquest
 
